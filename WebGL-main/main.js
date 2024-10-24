@@ -11,29 +11,64 @@ function deg2rad(angle) {
 
 
 // Constructor
-function Model(name) {
-    this.name = name;
-    this.iVertexBuffer = gl.createBuffer();
-    this.count = 0;
+// function Model(name) {
+//     this.name = name;
+//     this.iVertexBuffer = gl.createBuffer();
+//     this.count = 0;
 
-    this.BufferData = function(vertices) {
+//     this.BufferData = function(vertices) {
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+//         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+//         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
 
-        this.count = vertices.length/3;
+//         this.count = vertices.length/3;
+//     }
+
+//     this.Draw = function() {
+
+//         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+//         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+//         gl.enableVertexAttribArray(shProgram.iAttribVertex);
+   
+//         gl.drawArrays(gl.LINE_STRIP, 0, this.count);
+//     }
+// }
+class Model {
+    constructor(name) {
+        this.name = name;
+        this.vertexBuffer = gl.createBuffer();
+        this.indexBuffer = gl.createBuffer();
+        this.indexCount = 0;
     }
 
-    this.Draw = function() {
+    // Buffer both vertex and index data
+    BufferData(data) {
+        let vertices = data.vertexList;
+        let indices = data.indexList;
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+        // Bind and buffer vertex data
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        // Bind and buffer index data
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+        // Store the count of indices
+        this.indexCount = indices.length;
+    }
+
+    // Draw method using index buffer
+    Draw() {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
-   
-        gl.drawArrays(gl.LINE_STRIP, 0, this.count);
+
+        // Bind the index buffer and draw elements
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+        gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0);
     }
 }
-
 
 // Constructor
 function ShaderProgram(name, program) {
@@ -86,59 +121,78 @@ function draw() {
     surface.Draw();
 }
 
-/*
-function CreateSurfaceData()
-{
+// V 11: Twice Oblique Trochoid Cylindroid
+function CreateSurfaceData(H, c, alpha, phi, p, uMin, uMax, vMin, vMax, nu, nv) {
     let vertexList = [];
+    let indexList = [];
 
-    for (let i=0; i<360; i+=5) {
-        vertexList.push( Math.sin(deg2rad(i)), 1, Math.cos(deg2rad(i)) );
-        vertexList.push( Math.sin(deg2rad(i)), 0, Math.cos(deg2rad(i)) );
-    }
+    let du = (uMax - uMin) / nu;
+    let dv = (vMax - vMin) / nv;
 
-    return vertexList;
-}
-*/
+    for (let i = 0; i <= nu; i++) {
+        let u = uMin + i * du;
+        let theta = p * u;
 
-// SPHERE
-function CreateSurfaceData() {
-    const vertexList = [];
-    const radius = 1;        // Radius of the sphere
-    const thetaSteps = 30;   // Latitude divisions
-    const phiSteps = 30;     // Longitude divisions
+        for (let j = 0; j <= nv; j++) {
+            let v = vMin + j * dv;
+            let x = c * u + v * (Math.sin(phi) + Math.tan(alpha) * Math.cos(phi) * Math.cos(theta));
+            let y = v * Math.tan(alpha) * Math.sin(theta);
+            let z = H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
 
-    for (let i = 0; i <= thetaSteps; i++) {
-        const theta = Math.PI * (i / thetaSteps);  // Latitude angle (0 to π)
-
-        for (let j = 0; j <= phiSteps; j++) {
-            const phi = 2 * Math.PI * (j / phiSteps);  // Longitude angle (0 to 2π)
-
-            // Parametric equations for the sphere
-            const x = radius * Math.sin(theta) * Math.cos(phi);
-            const y = radius * Math.sin(theta) * Math.sin(phi);
-            const z = radius * Math.cos(theta);
-
-            // Push each vertex to the list
             vertexList.push(x, y, z);
+
+            // Create the index list (assuming a quad mesh)
+            if (i < nu && j < nv) {
+                let p1 = i * (nv + 1) + j;
+                let p2 = p1 + 1;
+                let p3 = p1 + (nv + 1);
+                let p4 = p3 + 1;
+
+                // First triangle
+                indexList.push(p1, p3, p2);
+                // Second triangle
+                indexList.push(p2, p3, p4);
+            }
         }
     }
 
-    return vertexList;
+    return {
+        vertexList: new Float32Array(vertexList),
+        indexList: new Uint16Array(indexList)
+    };
 }
 
 /* Initialize the WebGL context. Called from init() */
+// function initGL() {
+//     let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
+
+//     shProgram = new ShaderProgram('Basic', prog);
+//     shProgram.Use();
+
+//     shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
+//     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
+//     shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+
+//     surface = new Model('Surface');
+//     surface.BufferData(CreateSurfaceData());
+//     gl.enable(gl.DEPTH_TEST);
+// }
 function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
+    let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
 
     shProgram = new ShaderProgram('Basic', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+    shProgram.iColor = gl.getUniformLocation(prog, "color");
 
     surface = new Model('Surface');
-    surface.BufferData(CreateSurfaceData());
+
+    // Pass both vertex and index data
+    let surfaceData = CreateSurfaceData(1, 5, 0.033 * Math.PI, 0, 8 * Math.PI, 0, 1, -5, 5, 50, 50);
+    surface.BufferData(surfaceData);
+
     gl.enable(gl.DEPTH_TEST);
 }
 
