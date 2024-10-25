@@ -15,9 +15,11 @@ class Model {
     constructor(name) {
         this.name = name;
         this.vertexBuffer = gl.createBuffer();
-        this.lineIndexBuffer = gl.createBuffer();
+        this.uLineIndexBuffer = gl.createBuffer();
+        this.vLineIndexBuffer = gl.createBuffer();
         this.vertexCount = 0;
-        this.lineIndexCount = 0;
+        this.uLineIndexCount = 0;
+        this.vLineIndexCount = 0;
     }
 
     BufferData(surfaceData) {
@@ -26,10 +28,15 @@ class Model {
         gl.bufferData(gl.ARRAY_BUFFER, surfaceData.vertices, gl.STATIC_DRAW);
         this.vertexCount = surfaceData.vertices.length / 3;
 
-        // Bind and buffer line index data for wireframe
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.lineIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, surfaceData.lineIndices, gl.STATIC_DRAW);
-        this.lineIndexCount = surfaceData.lineIndices.length;
+        // Bind and buffer U line index data
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.uLineIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, surfaceData.uLineIndices, gl.STATIC_DRAW);
+        this.uLineIndexCount = surfaceData.uLineIndices.length;
+
+        // Bind and buffer V line index data
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.vLineIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, surfaceData.vLineIndices, gl.STATIC_DRAW);
+        this.vLineIndexCount = surfaceData.vLineIndices.length;
     }
 
     Draw() {
@@ -37,10 +44,13 @@ class Model {
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
 
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.lineIndexBuffer);
+        // Draw U direction polylines
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.uLineIndexBuffer);
+        gl.drawElements(gl.LINES, this.uLineIndexCount, gl.UNSIGNED_SHORT, 0);
 
-        // Draw wireframe with LINES
-        gl.drawElements(gl.LINES, this.lineIndexCount, gl.UNSIGNED_SHORT, 0);
+        // Draw V direction polylines
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.vLineIndexBuffer);
+        gl.drawElements(gl.LINES, this.vLineIndexCount, gl.UNSIGNED_SHORT, 0);
     }
 }
 
@@ -93,11 +103,10 @@ function draw() {
 // V 11: Twice Oblique Trochoid Cylindroid
 function CreateSurfaceData(c, H, alpha, phi, k, theta0, uMin, uMax, vMin, vMax, nu, nv) {
     let vertices = [];
-    // let normalList = [];
-    let lineIndices = [];
+    let uLineIndices = [];
+    let vLineIndices = [];
 
     let p = k * Math.PI;
-
     let du = (uMax - uMin) / (nu - 1);
     let dv = (vMax - vMin) / (nv - 1);
 
@@ -105,23 +114,28 @@ function CreateSurfaceData(c, H, alpha, phi, k, theta0, uMin, uMax, vMin, vMax, 
         let u = uMin + i * du;
         for (let j = 0; j < nv; j++) {
             let v = vMin + j * dv;
-
             let theta = theta0 + p * u;
 
-            // Calculate x, y, z positions (as before)
+            // Calculate x, y, z positions
             let x = c * u + v * (Math.sin(phi) + Math.tan(alpha) * Math.cos(phi) * Math.cos(theta));
             let y = v * Math.tan(alpha) * Math.sin(theta);
             let z = H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
 
             vertices.push(x, y, z);
 
-            // Calculate line indices for wireframe (adjacent vertices in grid)
-            if (i < nu - 1) lineIndices.push(i * nv + j, (i + 1) * nv + j);
-            if (j < nv - 1) lineIndices.push(i * nv + j, i * nv + j + 1);
+            // Build U direction polylines (constant v, varying u)
+            if (i < nu - 1) uLineIndices.push(i * nv + j, (i + 1) * nv + j);
+
+            // Build V direction polylines (constant u, varying v)
+            if (j < nv - 1) vLineIndices.push(i * nv + j, i * nv + j + 1);
         }
     }
 
-    return { vertices: new Float32Array(vertices), lineIndices: new Uint16Array(lineIndices) };
+    return {
+        vertices: new Float32Array(vertices),
+        uLineIndices: new Uint16Array(uLineIndices),
+        vLineIndices: new Uint16Array(vLineIndices)
+    };
 }
 
 
